@@ -14,9 +14,11 @@ use crate::db::{DBCol, RocksDB, VERSION_KEY};
 use crate::migrations::v6_to_v7::{
     col_state_refcount_8byte, migrate_col_transaction_refcount, migrate_receipts_refcount,
 };
+use crate::migrations::v8_to_v9::{repair_col_receipt_id_to_shard_id, repair_col_transactions};
 use crate::{create_store, Store, StoreUpdate};
 
 pub mod v6_to_v7;
+pub mod v8_to_v9;
 
 pub fn get_store_version(path: &str) -> DbVersion {
     RocksDB::get_version(path).expect("Failed to open the database")
@@ -114,4 +116,14 @@ pub fn migrate_7_to_8(path: &String) {
     }
     set_store_version_inner(&mut store_update, 8);
     store_update.commit().expect("Fail to migrate from DB version 7 to DB version 8");
+}
+
+// No format change. Just fix some inconsistencies if necessary.
+pub fn migrate_8_to_9(path: &String) {
+    let store = create_store(path);
+    let mut store_update = store.store_update();
+    repair_col_transactions(&store, &mut store_update);
+    repair_col_receipt_id_to_shard_id(&store, &mut store_update);
+    set_store_version_inner(&mut store_update, 9);
+    store_update.commit().expect("Fail to migrate from DB version 8 to DB version 9");
 }
